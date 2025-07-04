@@ -4,7 +4,10 @@ from typing import Callable, Optional
 
 from torch.utils.data import Dataset
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ImageFile
+
+# Allow loading of truncated/corrupted images instead of raising an error
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import pandas as pd
 import os
 import torch
