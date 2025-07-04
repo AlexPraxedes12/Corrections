@@ -342,10 +342,21 @@ def main(args, criterion):
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if args.eval:
-        if 'epoch' in checkpoint:
-            print("Test with the best model at epoch = %d" % checkpoint['epoch'])
-        test_stats, auc_roc = evaluate(data_loader_test, model, device, args, epoch=0, mode='test',
-                                       num_class=args.nb_classes, log_writer=log_writer)
+        if args.resume:
+            checkpoint = torch.load(args.resume, map_location='cpu')
+            if 'epoch' in checkpoint:
+                print("Test with the best model at epoch = %d" % checkpoint['epoch'])
+        test_stats, auc_roc, f1_test = evaluate(
+            data_loader_test,
+            model,
+            device,
+            args,
+            epoch=0,
+            mode='test',
+            num_class=args.nb_classes,
+            log_writer=log_writer,
+        )
+        print(f"Test ROC-AUC: {auc_roc:.4f} | F1: {f1_test:.4f}")
         exit(0)
 
     print(f"Start training for {args.epochs} epochs")
@@ -364,15 +375,24 @@ def main(args, criterion):
             args=args
         )
 
-        val_stats, val_score = evaluate(data_loader_val, model, device, args, epoch, mode='val',
-                                        num_class=args.nb_classes, log_writer=log_writer)
-        if max_score < val_score:
-            max_score = val_score
+        val_stats, val_auc, val_f1 = evaluate(
+            data_loader_val,
+            model,
+            device,
+            args,
+            epoch,
+            mode='val',
+            num_class=args.nb_classes,
+            log_writer=log_writer,
+        )
+        if max_score < val_auc:
+            max_score = val_auc
             best_epoch = epoch
             if args.output_dir and args.savemodel:
                 misc.save_model(
                     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                     loss_scaler=loss_scaler, epoch=epoch, mode='best')
+        print(f"Validation ROC-AUC: {val_auc:.4f} | F1: {val_f1:.4f}")
         print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
 
 
@@ -381,15 +401,29 @@ def main(args, criterion):
             model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
             model.to(device)
             print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
-            test_stats, auc_roc = evaluate(data_loader_test, model, device, args, -1, mode='test',
-                                           num_class=args.nb_classes, log_writer=None)
+            test_stats, auc_roc, f1_test = evaluate(
+                data_loader_test,
+                model,
+                device,
+                args,
+                -1,
+                mode='test',
+                num_class=args.nb_classes,
+                log_writer=None,
+            )
+            print(f"Test ROC-AUC: {auc_roc:.4f} | F1: {f1_test:.4f}")
 
         if log_writer is not None:
             log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
+            log_writer.add_scalar('metric/roc_auc', val_auc, epoch)
+            log_writer.add_scalar('metric/f1', val_f1, epoch)
 
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     'epoch': epoch,
-                     'n_parameters': n_parameters}
+        log_stats = {
+            **{f'train_{k}': v for k, v in train_stats.items()},
+            **{f'val_{k}': v for k, v in val_stats.items()},
+            'epoch': epoch,
+            'n_parameters': n_parameters,
+        }
 
         if args.output_dir and misc.is_main_process():
             if log_writer is not None:

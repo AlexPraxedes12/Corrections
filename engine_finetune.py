@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, f1_score
 
 from util.misc import MetricLogger
 
@@ -99,9 +99,19 @@ def evaluate(
 
     targets_concat = torch.cat(all_targets)
     preds_concat = torch.cat(all_preds)
+
+    # Compute ROC-AUC and F1, handling any potential shape issues gracefully
     try:
         auc = roc_auc_score(targets_concat.numpy(), preds_concat.numpy(), average="macro")
     except Exception:
         auc = 0.0
 
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, auc
+    try:
+        pred_bin = (preds_concat.numpy() >= 0.5).astype(int)
+        f1 = f1_score(targets_concat.numpy(), pred_bin, average="macro", zero_division=0)
+    except Exception:
+        f1 = 0.0
+
+    metrics = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    metrics.update({"roc_auc": auc, "f1": f1})
+    return metrics, auc, f1
