@@ -395,9 +395,18 @@ def main(args, criterion):
             max_score = val_auc
             best_epoch = epoch
             if args.output_dir and args.savemodel:
-                misc.save_model(
-                    args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                    loss_scaler=loss_scaler, epoch=epoch, mode='best')
+                try:
+                    misc.save_model(
+                        args=args,
+                        model=model,
+                        model_without_ddp=model_without_ddp,
+                        optimizer=optimizer,
+                        loss_scaler=loss_scaler,
+                        epoch=epoch,
+                        mode='best',
+                    )
+                except Exception as save_err:
+                    print(f"Error during model save: {save_err}")
         print(f"Validation ROC-AUC: {val_auc:.4f} | F1: {val_f1:.4f}")
         print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
 
@@ -452,7 +461,8 @@ if __name__ == '__main__':
 
 
     if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+        output_task_dir = os.path.join(args.output_dir, args.task) if args.task else args.output_dir
+        Path(output_task_dir).mkdir(parents=True, exist_ok=True)
     main(args, criterion)
 
 
