@@ -227,12 +227,25 @@ def main(args, criterion):
     transforms.ToTensor(),
     ])
 
-    csv_path = "/content/drive/MyDrive/RFMiD_Training_Labels.csv"
     image_dir = "/content/Training_Set/Training"
 
-    dataset_train = RFMiDDataset(image_dir=image_dir, csv_path=csv_path, transform=transform)
-    dataset_val = dataset_train  # si no tienes otro split
-    dataset_test = dataset_train  # opcional: usar otro CSV si lo tienes
+    dataset_train = RFMiDDataset(
+        image_dir=image_dir,
+        csv_path="/content/drive/MyDrive/RFMiD_Training_Labels.csv",
+        transform=transform,
+    )
+
+    dataset_val = RFMiDDataset(
+        image_dir=image_dir,
+        csv_path="/content/drive/MyDrive/RFMiD_Validation_Labels.csv",
+        transform=transform,
+    )
+
+    dataset_test = RFMiDDataset(
+        image_dir=image_dir,
+        csv_path="/content/drive/MyDrive/RFMiD_Testing_Labels.csv",
+        transform=transform,
+    )
 
 
 
