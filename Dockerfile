@@ -1,23 +1,16 @@
-# Imagen base con soporte para PyTorch + CUDA (usa esta si tienes GPU)
-FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+FROM python:3.10-slim
 
-# Establece el directorio de trabajo
-WORKDIR /app
+# Crear carpeta de trabajo
+WORKDIR /code
 
-# Copia tus archivos
-COPY . .
+# Copiar todo el contenido del proyecto
+COPY . /code
 
-# Instala las dependencias (usa el requirements original de RETFound si está)
-RUN pip install --upgrade pip \
- && pip install -r requirements.txt \
- && pip install --no-cache-dir timm scikit-learn pandas matplotlib opencv-python fastapi uvicorn[standard] huggingface_hub
+# Instalar dependencias
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Define variables de entorno si quieres
-ENV CONFIG_PATH=configs/cdcl_effi_b3_p.json
-ENV CHECKPOINT_PATH=models/RETFound_cfp_weights.pth
-
-# Puerto para FastAPI
+# Exponer el puerto de la API
 EXPOSE 8000
 
-# Comando por defecto (cambia app.main por tu archivo si usas FastAPI)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Ejecutar la API con Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

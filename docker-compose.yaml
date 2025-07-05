@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  retfound-api:
+    build: .
+    container_name: retfound_api_container
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/code
+    environment:
+      - PYTHONUNBUFFERED=1
