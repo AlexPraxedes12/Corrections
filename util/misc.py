@@ -12,6 +12,7 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
+import pickle
 from math import inf
 
 
@@ -343,7 +344,11 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)
         else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
+            # PyTorch >=2.6 uses a restricted unpickler by default. This can break
+            # when loading objects such as ``argparse.Namespace`` stored in older
+            # checkpoints, so we explicitly set ``pickle_module=pickle`` for
+            # backward compatibility.
+            checkpoint = torch.load(args.resume, map_location='cpu', pickle_module=pickle)
         if 'model' in checkpoint:
             checkpoint_model = checkpoint['model']
         else:
