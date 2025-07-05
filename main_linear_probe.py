@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import json
+import pickle
 
 import numpy as np
 import os
@@ -149,7 +150,13 @@ def get_args_parser():
 def main(args, criterion):
     if args.resume and not args.eval:
         resume = args.resume
-        checkpoint = torch.load(args.resume, map_location='cpu')
+        # PyTorch >=2.6 uses a restricted unpickler by default. This can break
+        # when loading objects such as ``argparse.Namespace`` stored in older
+        # checkpoints, so we explicitly set ``pickle_module=pickle`` for
+        # backward compatibility. Saving checkpoints with only ``state_dict``
+        # (model/optimizer) would avoid custom pickled objects and be more
+        # robust.
+        checkpoint = torch.load(args.resume, map_location='cpu', pickle_module=pickle)
         print("Load checkpoint from: %s" % args.resume)
         args = checkpoint['args']
         args.resume = resume
@@ -191,7 +198,10 @@ def main(args, criterion):
             filename=f'{args.finetune}.pth',
         )
         
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        # PyTorch >=2.6 uses a restricted unpickler by default. This can break
+        # when loading objects stored in older checkpoints, hence we pass
+        # ``pickle_module=pickle`` for backward compatibility.
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', pickle_module=pickle)
         print("Load pre-trained checkpoint from: %s" % args.finetune)
         
         if args.model!='RETFound_mae':
@@ -296,7 +306,10 @@ def main(args, criterion):
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
     if args.resume and args.eval:
-        checkpoint = torch.load(args.resume, map_location='cpu')
+        # PyTorch >=2.6 uses a restricted unpickler by default. This can break
+        # when loading objects stored in older checkpoints, hence we pass
+        # ``pickle_module=pickle`` for backward compatibility.
+        checkpoint = torch.load(args.resume, map_location='cpu', pickle_module=pickle)
         print("Load checkpoint from: %s" % args.resume)
         model.load_state_dict(checkpoint['model'])
 
@@ -376,7 +389,11 @@ def main(args, criterion):
 
 
         if epoch == (args.epochs - 1):
-            checkpoint = torch.load(os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'), map_location='cpu')
+            # PyTorch >=2.6 uses a restricted unpickler by default, so we pass
+            # ``pickle_module=pickle`` for compatibility with older checkpoints.
+            checkpoint = torch.load(
+                os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'),
+                map_location='cpu', pickle_module=pickle)
             model.load_state_dict(checkpoint['model'], strict=False)
             model.to(device)
             print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
