@@ -21,12 +21,41 @@ from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from huggingface_hub import hf_hub_download, login
 from engine_finetune import train_one_epoch, evaluate
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 import warnings
 import faulthandler
 
 faulthandler.enable()
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
+def evaluate_full_metrics(data_loader, model, device):
+    """Return accuracy, precision, recall, F1 and ROC-AUC on ``data_loader``."""
+    model.eval()
+    all_targets = []
+    all_probs = []
+    with torch.no_grad():
+        for samples, targets in data_loader:
+            samples = samples.to(device, non_blocking=True)
+            targets = targets.to(device, non_blocking=True)
+            outputs = model(samples)
+            all_probs.append(outputs.sigmoid().cpu())
+            all_targets.append(targets.cpu())
+
+    targets_np = torch.cat(all_targets).numpy()
+    probs_np = torch.cat(all_probs).numpy()
+    preds_np = (probs_np >= 0.5).astype(int)
+
+    accuracy = accuracy_score(targets_np, preds_np)
+    precision = precision_score(targets_np, preds_np, average="macro", zero_division=0)
+    recall = recall_score(targets_np, preds_np, average="macro", zero_division=0)
+    f1 = f1_score(targets_np, preds_np, average="macro", zero_division=0)
+    try:
+        roc_auc = roc_auc_score(targets_np, probs_np, average="macro")
+    except Exception:
+        roc_auc = 0.0
+    return accuracy, precision, recall, f1, roc_auc
 
 
 def get_args_parser():
@@ -242,8 +271,8 @@ def main(args, criterion):
     )
 
     dataset_test = RFMiDDataset(
-        image_dir=image_dir,
-        csv_path="/content/drive/MyDrive/RFMiD_Testing_Labels.csv",
+        image_dir="Test_Set/Test",
+        csv_path="Test_Labels.csv",
         transform=transform,
     )
 
@@ -365,17 +394,15 @@ def main(args, criterion):
             checkpoint = torch.load(args.resume, map_location='cpu', pickle_module=pickle)
             if 'epoch' in checkpoint:
                 print("Test with the best model at epoch = %d" % checkpoint['epoch'])
-        test_stats, auc_roc, f1_test = evaluate(
+        acc, prec, recall, f1_test, auc_roc = evaluate_full_metrics(
             data_loader_test,
             model,
             device,
-            args,
-            epoch=0,
-            mode='test',
-            num_class=args.nb_classes,
-            log_writer=log_writer,
         )
-        print(f"Test ROC-AUC: {auc_roc:.4f} | F1: {f1_test:.4f}")
+        print(
+            f"Test Accuracy: {acc:.4f} | Precision: {prec:.4f} | "
+            f"Recall: {recall:.4f} | F1: {f1_test:.4f} | ROC-AUC: {auc_roc:.4f}"
+        )
         exit(0)
 
     print(f"Start training for {args.epochs} epochs")
@@ -415,24 +442,7 @@ def main(args, criterion):
         print("Best epoch = %d, Best score = %.4f" % (best_epoch, max_score))
 
 
-        if epoch == (args.epochs - 1):
-            checkpoint = torch.load(
-                os.path.join(args.output_dir, args.task, 'checkpoint-best.pth'),
-                map_location='cpu', pickle_module=pickle)
-            model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
-            model.to(device)
-            print("Test with the best model, epoch = %d:" % checkpoint['epoch'])
-            test_stats, auc_roc, f1_test = evaluate(
-                data_loader_test,
-                model,
-                device,
-                args,
-                -1,
-                mode='test',
-                num_class=args.nb_classes,
-                log_writer=None,
-            )
-            print(f"Test ROC-AUC: {auc_roc:.4f} | F1: {f1_test:.4f}")
+
 
         if log_writer is not None:
             log_writer.add_scalar('loss/val', val_stats['loss'], epoch)
@@ -455,6 +465,22 @@ def main(args, criterion):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+    # Final evaluation on the hold-out test set
+    checkpoint_path = os.path.join(args.output_dir, args.task, 'checkpoint-best.pth')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', pickle_module=pickle)
+    model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+    model.to(device)
+    print("Evaluating best model on the test set...")
+    acc, prec, recall, f1_test, auc_roc = evaluate_full_metrics(
+        data_loader_test,
+        model,
+        device,
+    )
+    print(
+        f"Test Accuracy: {acc:.4f} | Precision: {prec:.4f} | "
+        f"Recall: {recall:.4f} | F1-score: {f1_test:.4f} | ROC-AUC: {auc_roc:.4f}"
+    )
 
 
 if __name__ == '__main__':
