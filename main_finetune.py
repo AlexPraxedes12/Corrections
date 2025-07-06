@@ -277,8 +277,8 @@ def main(args, criterion):
     )
 
     dataset_val = RFMiDDataset(
-        image_dir="/content/Validation_Set/Validation",
-        csv_path="/content/Validation_Set/RFMiD_Validation_Labels.csv",
+        image_dir="/content/Evaluation_Set/Validation",
+        csv_path="/content/Evaluation_Set/RFMiD_Validation_Labels.csv",
         transform=transform,
     )
 
