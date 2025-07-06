@@ -48,14 +48,26 @@ def evaluate_full_metrics(data_loader, model, device):
     preds_np = (probs_np >= 0.5).astype(int)
 
     accuracy = accuracy_score(targets_np, preds_np)
-    precision = precision_score(targets_np, preds_np, average="macro", zero_division=0)
-    recall = recall_score(targets_np, preds_np, average="macro", zero_division=0)
-    f1 = f1_score(targets_np, preds_np, average="macro", zero_division=0)
+    precision_macro = precision_score(targets_np, preds_np, average="macro", zero_division=0)
+    recall_macro = recall_score(targets_np, preds_np, average="macro", zero_division=0)
+    f1_macro = f1_score(targets_np, preds_np, average="macro", zero_division=0)
+    precision_micro = precision_score(targets_np, preds_np, average="micro", zero_division=0)
+    recall_micro = recall_score(targets_np, preds_np, average="micro", zero_division=0)
+    f1_micro = f1_score(targets_np, preds_np, average="micro", zero_division=0)
     try:
         roc_auc = roc_auc_score(targets_np, probs_np, average="macro")
     except Exception:
         roc_auc = 0.0
-    return accuracy, precision, recall, f1, roc_auc
+    return (
+        accuracy,
+        precision_macro,
+        recall_macro,
+        f1_macro,
+        roc_auc,
+        precision_micro,
+        recall_micro,
+        f1_micro,
+    )
 
 
 def get_args_parser():
@@ -265,14 +277,14 @@ def main(args, criterion):
     )
 
     dataset_val = RFMiDDataset(
-        image_dir=image_dir,
-        csv_path="/content/drive/MyDrive/RFMiD_Validation_Labels.csv",
+        image_dir="/content/Validation_Set/Validation",
+        csv_path="/content/Validation_Set/RFMiD_Validation_Labels.csv",
         transform=transform,
     )
 
     dataset_test = RFMiDDataset(
-        image_dir="Test_Set/Test",
-        csv_path="Test_Labels.csv",
+        image_dir="/content/Test_Set/Test",
+        csv_path="/content/Test_Set/RFMiD_Testing_Labels.csv",
         transform=transform,
     )
 
@@ -394,14 +406,26 @@ def main(args, criterion):
             checkpoint = torch.load(args.resume, map_location='cpu', pickle_module=pickle)
             if 'epoch' in checkpoint:
                 print("Test with the best model at epoch = %d" % checkpoint['epoch'])
-        acc, prec, recall, f1_test, auc_roc = evaluate_full_metrics(
+        (
+            acc,
+            prec_macro,
+            recall_macro,
+            f1_macro,
+            auc_roc,
+            prec_micro,
+            recall_micro,
+            f1_micro,
+        ) = evaluate_full_metrics(
             data_loader_test,
             model,
             device,
         )
         print(
-            f"Test Accuracy: {acc:.4f} | Precision: {prec:.4f} | "
-            f"Recall: {recall:.4f} | F1: {f1_test:.4f} | ROC-AUC: {auc_roc:.4f}"
+            f"Test Accuracy: {acc:.4f} | "
+            f"Precision (macro): {prec_macro:.4f} | Recall (macro): {recall_macro:.4f} | "
+            f"F1 (macro): {f1_macro:.4f} | "
+            f"Precision (micro): {prec_micro:.4f} | Recall (micro): {recall_micro:.4f} | "
+            f"F1 (micro): {f1_micro:.4f} | ROC-AUC: {auc_roc:.4f}"
         )
         exit(0)
 
@@ -472,14 +496,26 @@ def main(args, criterion):
     model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
     model.to(device)
     print("Evaluating best model on the test set...")
-    acc, prec, recall, f1_test, auc_roc = evaluate_full_metrics(
+    (
+        acc,
+        prec_macro,
+        recall_macro,
+        f1_macro,
+        auc_roc,
+        prec_micro,
+        recall_micro,
+        f1_micro,
+    ) = evaluate_full_metrics(
         data_loader_test,
         model,
         device,
     )
     print(
-        f"Test Accuracy: {acc:.4f} | Precision: {prec:.4f} | "
-        f"Recall: {recall:.4f} | F1-score: {f1_test:.4f} | ROC-AUC: {auc_roc:.4f}"
+        f"Test Accuracy: {acc:.4f} | "
+        f"Precision (macro): {prec_macro:.4f} | Recall (macro): {recall_macro:.4f} | "
+        f"F1 (macro): {f1_macro:.4f} | "
+        f"Precision (micro): {prec_micro:.4f} | Recall (micro): {recall_micro:.4f} | "
+        f"F1 (micro): {f1_micro:.4f} | ROC-AUC: {auc_roc:.4f}"
     )
 
 
