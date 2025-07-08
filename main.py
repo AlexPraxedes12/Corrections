@@ -3,8 +3,12 @@ from fastapi.responses import JSONResponse
 from torchvision import transforms
 from PIL import Image
 import torch
+import argparse
 import io
 from models_vit import RETFound_mae
+
+# Register argparse.Namespace for safe unpickling on PyTorch 2.6+
+torch.serialization.register_package(argparse)
 
 # Initialize FastAPI
 app = FastAPI(title="RETFound Disease Detection API")
