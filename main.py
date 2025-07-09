@@ -11,6 +11,13 @@ from models_vit import RETFound_mae
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Labels for the RFMiD dataset in order corresponding to model outputs
+disease_labels = [
+    "NORMAL", "CNV", "DME", "DRUSEN", "CSCR", "MH", "RP", "TSLN", "ODC",
+    "AION", "ARMD", "BRVO", "CRVO", "CRS", "CSR", "EDN", "ERM", "HTN",
+    "MS", "MYA", "ODP", "PRH", "ROP", "STR", "TMH", "VH", "PT"
+]
+
 # Initialize FastAPI
 app = FastAPI(title="RETFound Disease Detection API")
 
@@ -80,7 +87,16 @@ async def predict(file: UploadFile = File(...)):
                 return JSONResponse(status_code=500, content={"error": str(e)})
             probs = torch.sigmoid(outputs).squeeze().tolist()
 
-        return JSONResponse(content={"probabilities": probs})
+        # Pair each probability with its corresponding disease label
+        predictions = [
+            {"disease": disease_labels[i], "probability": float(prob)}
+            for i, prob in enumerate(probs)
+        ]
+
+        # Sort predictions by probability in descending order
+        predictions.sort(key=lambda x: x["probability"], reverse=True)
+
+        return JSONResponse(content={"predictions": predictions})
     except Exception as e:  # pylint: disable=broad-except
         logger.exception("Prediction failed")
         return JSONResponse(status_code=500, content={"error": str(e)})
