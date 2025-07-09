@@ -25,15 +25,18 @@ checkpoint_path = "models/checkpoint-best.pth"
 try:
     # Allow loading of argparse.Namespace objects under torch>=2.6
     if hasattr(torch.serialization, "_allowed_globals"):
-        torch.serialization._allowed_globals.add(argparse.Namespace)
+        torch.serialization._allowed_globals.add("argparse.Namespace")
 
     try:
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
     except Exception as e:  # pylint: disable=broad-except
         logging.warning(
-            "Standard checkpoint load failed (%s). Retrying with weights_only.", e
+            "Standard checkpoint load failed (%s). Falling back to weights_only.",
+            e,
         )
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        checkpoint = torch.load(
+            checkpoint_path, map_location="cpu", weights_only=True
+        )
 
     state_dict = checkpoint["model"] if isinstance(checkpoint, dict) and "model" in checkpoint else checkpoint
     model.load_state_dict(state_dict)
