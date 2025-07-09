@@ -1,6 +1,6 @@
 """Custom dataset utilities for medical image fine-tuning."""
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict
 
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -24,11 +24,25 @@ class RFMiDDataset(Dataset):
         Path to the CSV file with image ids and labels.
     transform : callable, optional
         Optional transform to be applied on an image.
+    source_dirs : dict[str, str], optional
+        Mapping from values in the ``source`` column to base image directories.
+        Keys are matched case-insensitively. ``rfmid`` defaults to
+        ``image_dir``.
     """
 
-    def __init__(self, image_dir: str, csv_path: str,
-                 transform: Optional[Callable] = None) -> None:
+    def __init__(
+        self,
+        image_dir: str,
+        csv_path: str,
+        transform: Optional[Callable] = None,
+        source_dirs: Optional[Dict[str, str]] = None,
+    ) -> None:
         self.image_dir = image_dir
+        # base directories for additional datasets
+        self.source_dirs: Dict[str, str] = {"rfmid": image_dir}
+        if source_dirs:
+            # normalise keys to lower case for robustness
+            self.source_dirs.update({k.lower(): v for k, v in source_dirs.items()})
         # Read the labels once during initialisation
         self.labels_df = pd.read_csv(csv_path)
         # Columns containing the multi-label targets
@@ -51,8 +65,13 @@ class RFMiDDataset(Dataset):
             idx = idx.item()
 
         row = self.labels_df.iloc[idx]
-        img_id = f"{row['ID']}.png"
-        img_path = os.path.join(self.image_dir, img_id)
+        source = str(row.get("source", "rfmid")).lower()
+        base_dir = self.source_dirs.get(source, self.image_dir)
+
+        img_rel = row.get("image")
+        if not isinstance(img_rel, str) or img_rel == "" or pd.isna(img_rel):
+            img_rel = f"{row['ID']}.png"
+        img_path = os.path.join(base_dir, img_rel)
 
         try:
             with Image.open(img_path) as img:
