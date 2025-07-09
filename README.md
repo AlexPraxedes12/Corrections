@@ -116,7 +116,17 @@ export HF_ENDPOINT=https://hf-mirror.com
         ├──class_a
         ├──class_b
         ├──class_c
-``` 
+```
+
+If you have multiple datasets organised in CSV manifests, you can merge them
+into a single file with `combine_csvs.py`:
+
+```bash
+python combine_csvs.py rfmid.csv full_df.csv deepdrid.csv
+```
+
+The script creates `combined_dataset.csv` and adds a `source` column
+(`rfmid`, `odir` or `deepdrid`) indicating the origin of each row.
 
 4. Start fine-tuning (use IDRiD as example). A fine-tuned checkpoint will be saved during training. Evaluation will be automatically run after training.
 
