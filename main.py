@@ -67,13 +67,20 @@ async def predict(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"error": f"Model not loaded: {load_error}"})
     try:
         image_bytes = await file.read()
+        logger.info("Received prediction request: %s (%d bytes)", file.filename, len(image_bytes))
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         input_tensor = transform(image).unsqueeze(0)
+        logger.info("Tensor shape after transforms: %s", tuple(input_tensor.shape))
 
         with torch.no_grad():
-            outputs = model(input_tensor)
+            try:
+                outputs = model(input_tensor)
+            except Exception as e:  # pylint: disable=broad-except
+                logger.exception("Model inference failed")
+                return JSONResponse(status_code=500, content={"error": str(e)})
             probs = torch.sigmoid(outputs).squeeze().tolist()
 
         return JSONResponse(content={"probabilities": probs})
     except Exception as e:  # pylint: disable=broad-except
+        logger.exception("Prediction failed")
         return JSONResponse(status_code=500, content={"error": str(e)})
