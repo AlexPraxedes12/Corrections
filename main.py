@@ -9,11 +9,13 @@ import argparse
 from models_vit import RETFound_mae
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI
 app = FastAPI(title="RETFound Disease Detection API")
 
 # Build model
+logger.info("Creating model...")
 model = RETFound_mae(
     img_size=224,
     num_classes=27,
@@ -22,6 +24,7 @@ model = RETFound_mae(
 )
 
 checkpoint_path = "models/checkpoint-best.pth"
+logger.info("Loading checkpoint from %s", checkpoint_path)
 try:
     # Allow loading of argparse.Namespace objects under torch>=2.6
     if hasattr(torch.serialization, "_allowed_globals"):
@@ -30,7 +33,7 @@ try:
     try:
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
     except Exception as e:  # pylint: disable=broad-except
-        logging.warning(
+        logger.warning(
             "Standard checkpoint load failed (%s). Falling back to weights_only.",
             e,
         )
@@ -38,11 +41,16 @@ try:
             checkpoint_path, map_location="cpu", weights_only=True
         )
 
-    state_dict = checkpoint["model"] if isinstance(checkpoint, dict) and "model" in checkpoint else checkpoint
-    model.load_state_dict(state_dict)
+    state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    if missing_keys:
+        logger.info("Missing keys when loading state dict: %s", missing_keys)
+    if unexpected_keys:
+        logger.info("Unexpected keys when loading state dict: %s", unexpected_keys)
     model.eval()
     load_error = None
 except Exception as e:  # pylint: disable=broad-except
+    logger.exception("Model initialization failed")
     model = None
     load_error = str(e)
 
