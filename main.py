@@ -6,10 +6,13 @@ import torch
 import io
 import logging
 import argparse
+import os
+import openai
 from models_vit import RETFound_mae
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Labels for the RFMiD dataset in order corresponding to model outputs
 disease_labels = [
@@ -96,7 +99,32 @@ async def predict(file: UploadFile = File(...)):
         # Sort predictions by probability in descending order
         predictions.sort(key=lambda x: x["probability"], reverse=True)
 
-        return JSONResponse(content={"predictions": predictions})
+        # Only keep the top 5 predictions
+        top_predictions = predictions[:5]
+
+        # Build a prompt for GPT to summarise these diseases
+        diseases = ", ".join(p["disease"] for p in top_predictions)
+        prompt = (
+            "Explain in simple terms what the following retinal diseases are. "
+            "For each disease, include a short explanation, common symptoms, and "
+            f"potential treatments: {diseases}."
+        )
+
+        try:
+            completion = openai.ChatCompletion.create(
+                model="gpt-4",
+                temperature=0.7,
+                messages=[
+                    {"role": "system", "content": "You are a helpful medical assistant."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            summary = completion["choices"][0]["message"]["content"].strip()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.exception("OpenAI API call failed")
+            summary = f"Failed to generate explanation: {e}"
+
+        return JSONResponse(content={"predictions": top_predictions, "summary": summary})
     except Exception as e:  # pylint: disable=broad-except
         logger.exception("Prediction failed")
         return JSONResponse(status_code=500, content={"error": str(e)})
