@@ -6,13 +6,12 @@ import torch
 import io
 import logging
 import argparse
-import os
-import openai
+from openai import OpenAI
 from models_vit import RETFound_mae
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI()
 
 # Labels for the RFMiD dataset in order corresponding to model outputs
 disease_labels = [
@@ -111,7 +110,7 @@ async def predict(file: UploadFile = File(...)):
         )
 
         try:
-            completion = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-4",
                 temperature=0.7,
                 messages=[
@@ -119,7 +118,7 @@ async def predict(file: UploadFile = File(...)):
                     {"role": "user", "content": prompt},
                 ],
             )
-            summary = completion["choices"][0]["message"]["content"].strip()
+            summary = response.choices[0].message.content.strip()
         except Exception as e:  # pylint: disable=broad-except
             logger.exception("OpenAI API call failed")
             summary = f"Failed to generate explanation: {e}"
